@@ -3,6 +3,7 @@
 from PIL import Image
 import argparse
 import sys
+import math
 
 def main():
     # Set up argument parsing
@@ -17,36 +18,42 @@ def main():
     dimensions = parser.add_mutually_exclusive_group(required=True)
     dimensions.add_argument('--height',
                             default=None,
-                            help='desired output height (inches)')
+                            help='desired output height (arbitrary units)')
     dimensions.add_argument('--width',
                             default=None,
-                            help='desired output width (inches)')
+                            help='desired output width (arbitrary units)')
     
-    parser.add_argument('--dpi',
-                        default=None,
-                        type=float,
-                        help='desired output DPI')
     parser.add_argument('--margin',
                         default=0.5,
                         type=float,
-                        help='page margin size, in inches')
+                        help='page margin size (arbitrary units)')
     parser.add_argument('--page_height',
                         default=11.0,
                         type=float,
-                        help='page size, in inches')
+                        help='page size (arbitrary units)')
     parser.add_argument('--page_width',
                         default=8.5,
                         type=float,
-                        help='page width, in inches')
+                        help='page width (arbitrary units)')
 
     args = parser.parse_args()
 
+    page_width = args.page_width
+    page_height = args.page_height
+    
+    available_page_width = page_width - args.margin
+    available_page_height = page_height - args.margin
+
     input_image = open_image(args.input_file)
-    input_height, input_width = input_image.size
+    input_width_px, input_height_px = input_image.size
     print('Loaded image {}:'.format(args.input_file),
             input_image.format,
-            "{}x{}".format(input_height, input_width),
+            "{}x{}".format(input_height_px, input_width_px),
             input_image.mode)
+
+    if input_image.mode != 'RGB':
+        print('Converting image to RGB mode')
+        input_image = input_image.convert('RGB')
 
     # Determine output height, in inches
     if args.height:
@@ -54,31 +61,28 @@ def main():
         output_height_inches = float(args.height)
     else:
         # Set height based on width and image scale
-        output_height_inches = float(args.width) * input_height/input_width
+        output_height_inches = float(args.width) * input_height_px/input_width_px
 
     # Determine output width, in inches
     if args.width:
         output_width_inches = float(args.width)
     else:
-        output_width_inches = float(args.height) * input_width/input_height
+        output_width_inches = float(args.height) * input_width_px/input_height_px
 
     print('Output image size will be {:.1f}" high and {:.1f}" wide'.format(
             output_height_inches, output_width_inches))
 
-    # Determine output pixel size
-    if args.dpi:
-        output_dpi = float(args.dpi)
-        output_height_px = int(output_height_inches * output_dpi)
-        output_width_px = int(output_width_inches * output_dpi)
+    # Figure out how many pages are needed for printing
+    pages_wide = math.ceil(output_width_inches / available_page_width)
+    pages_high = math.ceil(output_height_inches / available_page_height)
 
-        print('Resizing output image to {}x{}px'.format(
-                output_height_px, output_width_px))
+    # Iterate through all pages that need to be made
+    for num_wide_page in range(1, pages_wide+1):
+        for num_high_page in range(1, pages_high+1):
+            pass
 
-        output_image = input_image.resize( (output_height_px, output_width_px) )
-    else:
-        output_image = input_image
-
-    
+    print('Saving output')
+    #input_image.save('out.pdf', resolution=output_dpi)
 
 def open_image(filename):
     try:
