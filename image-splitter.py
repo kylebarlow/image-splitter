@@ -41,8 +41,8 @@ def main():
     page_width = args.page_width
     page_height = args.page_height
     
-    available_page_width = page_width - args.margin
-    available_page_height = page_height - args.margin
+    available_page_width = page_width - 2*args.margin
+    available_page_height = page_height - 2*args.margin
 
     input_image = open_image(args.input_file)
     input_width_px, input_height_px = input_image.size
@@ -55,31 +55,105 @@ def main():
         print('Converting image to RGB mode')
         input_image = input_image.convert('RGB')
 
-    # Determine output height, in inches
+    # Determine output height, in units
     if args.height:
         # Height specified via argument
-        output_height_inches = float(args.height)
+        output_height = float(args.height)
     else:
         # Set height based on width and image scale
-        output_height_inches = float(args.width) * input_height_px/input_width_px
+        output_height = float(args.width) * input_height_px/input_width_px
 
-    # Determine output width, in inches
+    # Determine output width, in units
     if args.width:
-        output_width_inches = float(args.width)
+        output_width = float(args.width)
     else:
-        output_width_inches = float(args.height) * input_width_px/input_height_px
+        output_width = float(args.height) * input_width_px/input_height_px
 
-    print('Output image size will be {:.1f}" high and {:.1f}" wide'.format(
-            output_height_inches, output_width_inches))
+    print('Output image size will be {:.1f}u high and {:.1f}u wide'.format(
+            output_height, output_width))
+
+    # image_width_units = input_width_px / output_width
+    # image_height_units = input_height_px / output_height
+
+    # Create master output page image, into which the cropped parts of the original
+    #  images will be pasted.
+    pixels_per_units= (input_height_px / output_height) # Since we maintain scale, this
+                                                        # calculation could also use width
+    margin_size_px = int(args.margin * pixels_per_units)
+    page_width_px = int(page_width * pixels_per_units)
+    page_height_px = int(page_height * pixels_per_units)
+    print(margin_size_px,page_width_px,page_height_px)
+    blank_page = Image.new('RGB', (page_width_px, page_height_px), color=(255,255,255))
 
     # Figure out how many pages are needed for printing
-    pages_wide = math.ceil(output_width_inches / available_page_width)
-    pages_high = math.ceil(output_height_inches / available_page_height)
+    pages_wide = math.ceil(output_width / available_page_width)
+    pages_high = math.ceil(output_height / available_page_height)
+    total_pages = pages_wide * pages_high
 
     # Iterate through all pages that need to be made
+    page_count = 1
     for num_wide_page in range(1, pages_wide+1):
+        # Positions in units
+        unit_left_pos = (num_wide_page - 1) * available_page_width
+        unit_right_pos = min(num_wide_page * available_page_width, output_width)
+
+        # Positions as percentage of entire image
+        percent_left_pos = unit_left_pos / output_width
+        percent_right_pos = unit_right_pos / output_width
+        
         for num_high_page in range(1, pages_high+1):
-            pass
+            # Positions in units
+            unit_top_pos = (num_high_page - 1) * available_page_height
+            unit_bottom_pos = min(num_high_page * available_page_height, output_height)
+
+            # Positions as percentage of entire image
+            percent_top_pos = unit_top_pos / output_height
+            percent_bottom_pos = unit_bottom_pos / output_height
+
+            print('Creating page {} of {}: {:.2f}%-{:.2f}% of image width by {:.2f}%-{:.2f}% of image height'.format(
+                    page_count, total_pages,
+                    percent_left_pos*100, percent_right_pos*100,
+                    percent_top_pos*100, percent_bottom_pos*100))
+
+            ### Crop out this page's portion of image ###
+            ## Calculate region to crop, in pixels ##
+            px_left = int(percent_left_pos * input_width_px)
+            px_upper = int(percent_top_pos * input_height_px)
+            px_right = int(percent_right_pos * input_width_px)
+            px_lower = int(percent_bottom_pos * input_height_px)
+
+            # Special calculations for right and lower so no overlapping pixels
+            # if percent_right_pos == 1.0:
+            #     px_right = input_width_px
+            # else:
+            #     px_right = int(percent_right_pos * input_width_px) - 1
+
+            # if percent_bottom_pos == 1.0:
+            #     px_lower = input_height_px
+            # else:
+            #     px_lower = int(percent_bottom_pos * input_height_px) - 1
+
+            # Check to see if left matches right or top matches bottom
+            # Seems like this would only happen in cases where you would put a 1-pixel wide
+            # or tall image on a page, which we are avoiding
+            if (px_left == px_right) or (px_upper == px_lower):
+                print('\nParameters are creating too few pixels per page - use a larger image or smaller output size')
+                sys.exit(1)
+
+            box = (px_left, px_upper, px_right, px_lower)
+            # print(region)
+
+            # Paste cropped image section into new page image
+            page = blank_page.copy()
+            region = input_image.crop(box)
+            paste_box = (margin_size_px, margin_size_px,
+                         margin_size_px + px_right - px_left,
+                         margin_size_px + px_lower - px_upper)
+            page.paste(region, paste_box)
+
+            page.save('pageout_{}.pdf'.format(page_count))
+
+            page_count += 1
 
     print('Saving output')
     #input_image.save('out.pdf', resolution=output_dpi)
