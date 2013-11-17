@@ -72,9 +72,6 @@ def main():
     print('Output image size will be {:.1f}u high and {:.1f}u wide'.format(
             output_height, output_width))
 
-    # image_width_units = input_width_px / output_width
-    # image_height_units = input_height_px / output_height
-
     # Create master output page image, into which the cropped parts of the original
     #  images will be pasted.
     pixels_per_units= (input_height_px / output_height) # Since we maintain scale, this
@@ -82,7 +79,6 @@ def main():
     margin_size_px = int(args.margin * pixels_per_units)
     page_width_px = int(page_width * pixels_per_units)
     page_height_px = int(page_height * pixels_per_units)
-    print(margin_size_px,page_width_px,page_height_px)
     blank_page = Image.new('RGB', (page_width_px, page_height_px), color=(255,255,255))
 
     # Figure out how many pages are needed for printing
@@ -122,17 +118,6 @@ def main():
             px_right = int(percent_right_pos * input_width_px)
             px_lower = int(percent_bottom_pos * input_height_px)
 
-            # Special calculations for right and lower so no overlapping pixels
-            # if percent_right_pos == 1.0:
-            #     px_right = input_width_px
-            # else:
-            #     px_right = int(percent_right_pos * input_width_px) - 1
-
-            # if percent_bottom_pos == 1.0:
-            #     px_lower = input_height_px
-            # else:
-            #     px_lower = int(percent_bottom_pos * input_height_px) - 1
-
             # Check to see if left matches right or top matches bottom
             # Seems like this would only happen in cases where you would put a 1-pixel wide
             # or tall image on a page, which we are avoiding
@@ -141,7 +126,6 @@ def main():
                 sys.exit(1)
 
             box = (px_left, px_upper, px_right, px_lower)
-            # print(region)
 
             # Paste cropped image section into new page image
             page = blank_page.copy()
@@ -154,9 +138,6 @@ def main():
             page.save('pageout_{}.pdf'.format(page_count))
 
             page_count += 1
-
-    print('Saving output')
-    #input_image.save('out.pdf', resolution=output_dpi)
 
 def open_image(filename):
     try:
